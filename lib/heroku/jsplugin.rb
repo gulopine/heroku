@@ -3,10 +3,6 @@ require 'rbconfig'
 class Heroku::JSPlugin
   extend Heroku::Helpers
 
-  def self.setup?
-    File.exists? bin
-  end
-
   def self.try_takeover(command, args)
     topic, cmd = command.split(':', 2)
     if cmd
@@ -19,7 +15,6 @@ class Heroku::JSPlugin
   end
 
   def self.load!
-    return unless setup?
     this = self
     topics.each do |topic|
       Heroku::Command.register_namespace(
@@ -52,7 +47,6 @@ class Heroku::JSPlugin
   end
 
   def self.plugins
-    return [] unless setup?
     @plugins ||= `"#{bin}" plugins`.lines.map do |line|
       name, version = line.split
       { :name => name, :version => version }
@@ -80,12 +74,10 @@ class Heroku::JSPlugin
   end
 
   def self.commands_info
-    copy_ca_cert rescue nil # TODO: remove this once most of the users have the cacert setup
     @commands_info ||= json_decode(`"#{bin}" commands --json`)
   end
 
   def self.install(name, opts={})
-    self.setup
     system "\"#{bin}\" plugins:install #{name}" if opts[:force] || !self.is_plugin_installed?(name)
     error "error installing plugin #{name}" if $? != 0
   end
@@ -112,6 +104,7 @@ class Heroku::JSPlugin
 
   def self.setup
     return if File.exist? bin
+    require 'excon'
     $stderr.print "Installing Heroku Toolbelt v4..."
     FileUtils.mkdir_p File.dirname(bin)
     copy_ca_cert
@@ -125,7 +118,7 @@ class Heroku::JSPlugin
       File.delete bin
       raise 'SHA mismatch for heroku-cli'
     end
-    $stderr.puts " done"
+    $stderr.puts " done.\nFor more information on Toolbelt v4: https://github.com/heroku/heroku-cli"
   end
 
   def self.copy_ca_cert
